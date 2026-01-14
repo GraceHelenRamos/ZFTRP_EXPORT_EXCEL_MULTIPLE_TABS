@@ -1,0 +1,225 @@
+INCLUDE ole2incl.
+
+*---------------------------------------------------------------------*
+* Objetos OLE
+*---------------------------------------------------------------------*
+DATA: go_excel     TYPE ole2_object,
+      go_workbooks TYPE ole2_object,
+      go_workbook  TYPE ole2_object,
+      go_sheet     TYPE ole2_object,
+      go_cell1     TYPE ole2_object,
+      go_cell2     TYPE ole2_object,
+      go_range     TYPE ole2_object,
+      go_font      TYPE ole2_object,
+      go_color     TYPE ole2_object,
+      go_sheets    TYPE ole2_object.
+
+*---------------------------------------------------------------------*
+* Tipos
+*---------------------------------------------------------------------*
+TYPES: BEGIN OF ty_mara,
+         matnr TYPE mara-matnr,
+         ersda TYPE mara-ersda,
+         ernam TYPE mara-ernam,
+         laeda TYPE mara-laeda,
+         aenam TYPE mara-aenam,
+         vpsta TYPE mara-vpsta,
+         pstat TYPE mara-pstat,
+       END OF ty_mara,
+
+       BEGIN OF y_line,
+         data1(1500) TYPE c,
+       END OF y_line.
+
+
+TYPES: ty_clipboard TYPE STANDARD TABLE OF y_line.
+
+*---------------------------------------------------------------------*
+* Dados
+*---------------------------------------------------------------------*
+DATA: gt_backorder TYPE STANDARD TABLE OF ty_mara,
+      gt_backlog   TYPE STANDARD TABLE OF ty_mara,
+      gt_blocked   TYPE STANDARD TABLE OF ty_mara,
+      gt_clipboard TYPE ty_clipboard.
+
+DATA gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+
+DATA: gv_filename TYPE string,
+      gv_path     TYPE string,
+      gv_fullname TYPE string,
+      gv_rc       TYPE i.
+
+*---------------------------------------------------------------------*
+* START-OF-SELECTION
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  PERFORM select_data.
+  PERFORM open_excel.
+
+  PERFORM export_sheet USING 'Back Orders' 35 gt_backorder.
+  PERFORM export_sheet USING 'Backlog'     40 gt_backlog.
+  PERFORM export_sheet USING 'Blocked'     45 gt_blocked.
+
+  PERFORM save_excel.
+  PERFORM close_excel.
+
+*---------------------------------------------------------------------*
+* FORMS
+*---------------------------------------------------------------------*
+
+FORM select_data.
+
+  SELECT matnr ersda ernam laeda aenam vpsta pstat
+    FROM mara
+    UP TO 10 ROWS
+    INTO TABLE gt_backorder.
+
+  SELECT matnr ersda ernam laeda aenam vpsta pstat
+    FROM mara
+    UP TO 10 ROWS
+    INTO TABLE gt_backlog.
+
+  SELECT matnr ersda ernam laeda aenam vpsta pstat
+    FROM mara
+    INTO TABLE gt_blocked
+    UP TO 10 ROWS.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM open_excel.
+
+  CREATE OBJECT go_excel 'EXCEL.APPLICATION'.
+  SET PROPERTY OF go_excel 'Visible' = 1.
+
+  CALL METHOD OF go_excel 'Workbooks' = go_workbooks.
+  CALL METHOD OF go_workbooks 'Add' = go_workbook.
+  CALL METHOD OF go_excel 'Sheets' = go_sheets.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM close_excel.
+
+  SET PROPERTY OF go_excel 'DisplayAlerts' = 0.
+  CALL METHOD OF go_excel 'Quit'.
+  FREE OBJECT go_excel.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM export_sheet
+  USING
+    p_name  TYPE string
+    p_color TYPE i
+    pt_data TYPE STANDARD TABLE.
+
+  PERFORM create_sheet USING p_name p_color.
+  PERFORM fill_clipboard_mara USING pt_data CHANGING gt_clipboard.
+  PERFORM paste_clipboard.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM create_sheet USING p_name TYPE string
+                        p_color TYPE i.
+
+  CALL METHOD OF go_sheets 'Add'.
+  GET PROPERTY OF go_excel 'ActiveSheet' = go_sheet.
+  SET PROPERTY OF go_sheet 'Name' = p_name.
+
+  CALL METHOD OF go_excel 'Cells' = go_cell1 EXPORTING #1 = 1 #2 = 1.
+  CALL METHOD OF go_excel 'Cells' = go_cell2 EXPORTING #1 = 1 #2 = 50.
+
+  CALL METHOD OF go_excel 'Range' = go_range
+    EXPORTING #1 = go_cell1 #2 = go_cell2.
+
+  GET PROPERTY OF go_range 'Font' = go_font.
+  SET PROPERTY OF go_font 'Bold' = 1.
+
+  GET PROPERTY OF go_range 'Interior' = go_color.
+  SET PROPERTY OF go_color 'ColorIndex' = p_color.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM fill_clipboard_mara
+  USING
+    pt_data TYPE STANDARD TABLE
+  CHANGING
+    ct_clipboard TYPE ty_clipboard.
+
+  DATA ls_row TYPE ty_mara.
+
+  CLEAR ct_clipboard.
+
+  LOOP AT pt_data INTO ls_row.
+    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-ersda }{ gv_tab }{ ls_row-ernam }{ gv_tab }{ ls_row-laeda }{ gv_tab }{ ls_row-aenam }{ gv_tab }{ ls_row-vpsta }{ gv_tab }{ ls_row-pstat }|
+      TO ct_clipboard.
+  ENDLOOP.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+FORM paste_clipboard.
+
+  DATA lv_rc TYPE i.
+
+  CALL METHOD cl_gui_frontend_services=>clipboard_export
+    IMPORTING
+      data                 = gt_clipboard[]
+    CHANGING
+      rc                   = lv_rc
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      not_supported_by_gui = 3
+      no_authority         = 4
+      OTHERS               = 5.
+  IF lv_rc <> 0.
+    MESSAGE 'Erro ao exportar dados para o clipboard' TYPE 'E'.
+  ENDIF.
+
+  WAIT UP TO 1 SECONDS.
+
+  CALL METHOD OF go_excel 'Cells' = go_cell1 EXPORTING #1 = 1 #2 = 1.
+  CALL METHOD OF go_excel 'Range' = go_range EXPORTING #1 = go_cell1 #2 = go_cell1.
+  CALL METHOD OF go_range 'Select'.
+  CALL METHOD OF go_sheet 'Paste'.
+
+ENDFORM.
+*---------------------------------------------------------------------*
+FORM save_excel.
+
+  DATA: lv_fullpath TYPE string,
+        lv_path     TYPE string,
+        lv_rc       TYPE i,
+        lv_filename TYPE string.
+
+* Usuário escolhe onde salvar
+  CALL METHOD cl_gui_frontend_services=>file_save_dialog
+    EXPORTING
+      default_extension = 'xlsx'
+      default_file_name = 'relatorio.xlsx'
+      file_filter       = 'Excel (*.xlsx)|*.xlsx'
+    CHANGING
+      filename          = lv_filename
+      fullpath          = lv_fullpath
+      path              = lv_path
+      user_action       = lv_rc.
+* Se cancelar → salva no Desktop
+  IF lv_rc <> 0 OR lv_fullpath IS INITIAL.
+
+    CALL METHOD cl_gui_frontend_services=>get_desktop_directory
+      CHANGING
+        desktop_directory = lv_path.
+
+    CONCATENATE lv_path '\relatorio.xlsx' INTO lv_fullpath.
+  ENDIF.
+
+  CALL METHOD OF go_workbook 'SaveAs'
+    EXPORTING
+      #1 = lv_fullpath
+      #2 = 51. " XLSX
+
+ENDFORM.
