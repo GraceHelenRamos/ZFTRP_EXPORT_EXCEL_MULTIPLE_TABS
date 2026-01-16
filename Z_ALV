@@ -123,7 +123,7 @@ FORM export_sheet USING  p_name  TYPE string
 
 
   PERFORM create_sheet USING p_name p_color.
-  PERFORM write_header_mara USING 'ZSTPP_PLANNED_VERSUS_BIL'.
+  PERFORM write_header_mara USING 'ty_mara'.
   PERFORM fill_clipboard_mara USING pt_data CHANGING gt_clipboard.
   PERFORM paste_clipboard_from_row USING 2.
 
