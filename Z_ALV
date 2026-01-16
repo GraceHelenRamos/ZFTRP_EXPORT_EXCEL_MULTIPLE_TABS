@@ -163,7 +163,7 @@ FORM create_sheet USING p_name TYPE string
   SET PROPERTY OF go_font 'Bold' = 1.
 
 
-*nessa lógica o arquivo excel não seguia uma regra para as abas
+*nessa lógica o arquivo excel não segui uma regra para as abas
 *  CALL METHOD OF go_sheets 'Add'.
 *  GET PROPERTY OF go_excel 'ActiveSheet' = go_sheet.
 *  SET PROPERTY OF go_sheet 'Name' = p_name.
@@ -200,16 +200,6 @@ FORM write_header_mara USING p_tabname TYPE tabname.
     PERFORM set_cell USING 1 lv_col ls_dfies-scrtext_l.
     lv_col = lv_col + 1.
   ENDLOOP.
-
-
-*  PERFORM set_cell USING 1 1 'Material'.
-*  PERFORM set_cell USING 1 2 'Data criação'.
-*  PERFORM set_cell USING 1 3 'Criado por'.
-*  PERFORM set_cell USING 1 4 'Última modificação'.
-*  PERFORM set_cell USING 1 5 'Modificado por'.
-*  PERFORM set_cell USING 1 6 'Status visão'.
-*  PERFORM set_cell USING 1 7 'Status manutenção'.
-
 ENDFORM.
 
 *---------------------------------------------------------------------*
@@ -235,25 +225,12 @@ ENDFORM.
 FORM fill_clipboard_mara USING  pt_data TYPE STANDARD TABLE
 
                       CHANGING  ct_clipboard TYPE ty_clipboard.
-*
-*  DATA: ls_row TYPE ty_mara,
-*        gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
-*
-*  CLEAR ct_clipboard.
-*
-*  LOOP AT pt_data INTO ls_row.
-*    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-ersda }{ gv_tab }{ ls_row-ernam }{ gv_tab }{ ls_row-laeda }{ gv_tab }{ ls_row-aenam }{ gv_tab }{ ls_row-vpsta }{ gv_tab }{ ls_row-pstat }|
-*      TO ct_clipboard.
-*  ENDLOOP.
-
-
 
   DATA: gv_tab        TYPE c VALUE cl_abap_char_utilities=>horizontal_tab,
         ls_row        TYPE ty_mara,
         lv_line       TYPE string,
         lo_struct     TYPE REF TO cl_abap_structdescr,
         lt_components TYPE abap_compdescr_tab,
-*        ls_comp       LIKE LINE OF lt_components,"ou esse tipo aqui abap_compdescr
         lv_value      TYPE string.
 
   FIELD-SYMBOLS: <fs_field> TYPE any.
@@ -268,7 +245,7 @@ FORM fill_clipboard_mara USING  pt_data TYPE STANDARD TABLE
 
     LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_comp>).
       ASSIGN COMPONENT <fs_comp>-name OF STRUCTURE ls_row TO <fs_field>.
-      IF sy-subrc = 0.
+      IF sy-subrc is inicial.
         lv_value = <fs_field>.
         lv_line = |{ lv_line }{ lv_value }{ gv_tab }|.
       ENDIF.
@@ -379,9 +356,9 @@ FORM fill_clipboard_marc  USING
 
   CLEAR ct_clipboard.
 
-*  LOOP AT pt_data INTO ls_row.
-*    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-werks }{ gv_tab }{ ls_row-pstat }{ gv_tab }{ ls_row-dispo }|
-*      TO ct_clipboard.
-*  ENDLOOP.
+  LOOP AT pt_data INTO ls_row.
+    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-werks }{ gv_tab }{ ls_row-pstat }{ gv_tab }{ ls_row-dispo }|
+     TO ct_clipboard.
+  ENDLOOP.
 
 ENDFORM.
