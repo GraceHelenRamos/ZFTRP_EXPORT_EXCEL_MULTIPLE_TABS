@@ -41,7 +41,8 @@ TYPES: BEGIN OF ty_mara,
        END OF ty_marc,
 
        BEGIN OF y_line,
-         data1(1500) TYPE c,
+         data1(3500) TYPE c,
+*         data1 TYPE string,
        END OF y_line.
 
 TYPES: ty_clipboard TYPE STANDARD TABLE OF y_line.
@@ -54,7 +55,7 @@ DATA: gt_backorder TYPE STANDARD TABLE OF ty_mara,
       gt_blocked   TYPE STANDARD TABLE OF ty_mara,
       gt_clipboard TYPE ty_clipboard.
 
-DATA gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+*DATA gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
 
 *---------------------------------------------------------------------*
 * START-OF-SELECTION
@@ -115,14 +116,14 @@ FORM close_excel.
 ENDFORM.
 
 *---------------------------------------------------------------------*
-FORM export_sheet
-  USING
-    p_name  TYPE string
-    p_color TYPE i
-    pt_data TYPE STANDARD TABLE.
+FORM export_sheet USING  p_name  TYPE string
+                         p_color TYPE i
+                         pt_data TYPE STANDARD TABLE.
+
+
 
   PERFORM create_sheet USING p_name p_color.
-  PERFORM write_header_mara.
+  PERFORM write_header_mara USING 'ZSTPP_PLANNED_VERSUS_BIL'.
   PERFORM fill_clipboard_mara USING pt_data CHANGING gt_clipboard.
   PERFORM paste_clipboard_from_row USING 2.
 
@@ -132,7 +133,23 @@ ENDFORM.
 FORM create_sheet USING p_name TYPE string
                         p_color TYPE i.
 
-  CALL METHOD OF go_sheets 'Add'.
+*assim o programa priorisa sempre a ultima aba e add a proxima depois
+  DATA: lo_last_sheet TYPE ole2_object,
+        lv_count      TYPE i.
+
+  " Pega quantidade de abas
+  GET PROPERTY OF go_sheets 'Count' = lv_count.
+
+  " Pega a última aba
+  CALL METHOD OF go_sheets 'Item' = lo_last_sheet
+    EXPORTING
+      #1 = lv_count.
+
+  " Cria nova aba APÓS a última
+  CALL METHOD OF go_sheets 'Add'
+    EXPORTING
+      #1 = lo_last_sheet.   " After
+
   GET PROPERTY OF go_excel 'ActiveSheet' = go_sheet.
   SET PROPERTY OF go_sheet 'Name' = p_name.
 
@@ -145,30 +162,65 @@ FORM create_sheet USING p_name TYPE string
   GET PROPERTY OF go_range 'Font' = go_font.
   SET PROPERTY OF go_font 'Bold' = 1.
 
-  GET PROPERTY OF go_range 'Interior' = go_color.
-  SET PROPERTY OF go_color 'ColorIndex' = p_color.
+
+*nessa lógica o arquivo excel não seguia uma regra para as abas
+*  CALL METHOD OF go_sheets 'Add'.
+*  GET PROPERTY OF go_excel 'ActiveSheet' = go_sheet.
+*  SET PROPERTY OF go_sheet 'Name' = p_name.
+*
+*  CALL METHOD OF go_excel 'Cells' = go_cell1 EXPORTING #1 = 1 #2 = 1.
+*  CALL METHOD OF go_excel 'Cells' = go_cell2 EXPORTING #1 = 1 #2 = 50.
+*
+*  CALL METHOD OF go_excel 'Range' = go_range
+*    EXPORTING #1 = go_cell1 #2 = go_cell2.
+*
+*  GET PROPERTY OF go_range 'Font' = go_font.
+*  SET PROPERTY OF go_font 'Bold' = 1.
+
+*  GET PROPERTY OF go_range 'Interior' = go_color.
+*  SET PROPERTY OF go_color 'ColorIndex' = p_color.
 
 ENDFORM.
 
 *---------------------------------------------------------------------*
-FORM write_header_mara.
+FORM write_header_mara USING p_tabname TYPE tabname.
 
-  PERFORM set_cell USING 1 1 'Material'.
-  PERFORM set_cell USING 1 2 'Data criação'.
-  PERFORM set_cell USING 1 3 'Criado por'.
-  PERFORM set_cell USING 1 4 'Última modificação'.
-  PERFORM set_cell USING 1 5 'Modificado por'.
-  PERFORM set_cell USING 1 6 'Status visão'.
-  PERFORM set_cell USING 1 7 'Status manutenção'.
+  DATA: lt_dfies TYPE STANDARD TABLE OF dfies,
+        ls_dfies TYPE dfies,
+        lv_col   TYPE i VALUE 1.
+  CONSTANTS c_field_name TYPE dfies-fieldname VALUE '.INCLUDE'.
+
+  CALL FUNCTION 'DDIF_FIELDINFO_GET'
+    EXPORTING
+      tabname   = p_tabname
+    TABLES
+      dfies_tab = lt_dfies.
+
+  LOOP AT lt_dfies INTO ls_dfies WHERE fieldname <> c_field_name.
+    PERFORM set_cell USING 1 lv_col ls_dfies-scrtext_l.
+    lv_col = lv_col + 1.
+  ENDLOOP.
+
+
+*  PERFORM set_cell USING 1 1 'Material'.
+*  PERFORM set_cell USING 1 2 'Data criação'.
+*  PERFORM set_cell USING 1 3 'Criado por'.
+*  PERFORM set_cell USING 1 4 'Última modificação'.
+*  PERFORM set_cell USING 1 5 'Modificado por'.
+*  PERFORM set_cell USING 1 6 'Status visão'.
+*  PERFORM set_cell USING 1 7 'Status manutenção'.
 
 ENDFORM.
 
 *---------------------------------------------------------------------*
 FORM set_cell USING p_row TYPE i
                     p_col TYPE i
-                    p_val TYPE string.
+                    p_value TYPE scrtext_l.
 
-  DATA lo_cell TYPE ole2_object.
+  DATA: lo_cell TYPE ole2_object,
+        p_val   TYPE string.
+
+  p_val = p_value.
 
   CALL METHOD OF go_excel 'Cells' = lo_cell
     EXPORTING
@@ -180,19 +232,52 @@ FORM set_cell USING p_row TYPE i
 ENDFORM.
 
 *---------------------------------------------------------------------*
-FORM fill_clipboard_mara
-  USING
-    pt_data TYPE STANDARD TABLE
-  CHANGING
-    ct_clipboard TYPE ty_clipboard.
+FORM fill_clipboard_mara USING  pt_data TYPE STANDARD TABLE
 
-  DATA ls_row TYPE ty_mara.
+                      CHANGING  ct_clipboard TYPE ty_clipboard.
+*
+*  DATA: ls_row TYPE ty_mara,
+*        gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+*
+*  CLEAR ct_clipboard.
+*
+*  LOOP AT pt_data INTO ls_row.
+*    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-ersda }{ gv_tab }{ ls_row-ernam }{ gv_tab }{ ls_row-laeda }{ gv_tab }{ ls_row-aenam }{ gv_tab }{ ls_row-vpsta }{ gv_tab }{ ls_row-pstat }|
+*      TO ct_clipboard.
+*  ENDLOOP.
+
+
+
+  DATA: gv_tab        TYPE c VALUE cl_abap_char_utilities=>horizontal_tab,
+        ls_row        TYPE ty_mara,
+        lv_line       TYPE string,
+        lo_struct     TYPE REF TO cl_abap_structdescr,
+        lt_components TYPE abap_compdescr_tab,
+*        ls_comp       LIKE LINE OF lt_components,"ou esse tipo aqui abap_compdescr
+        lv_value      TYPE string.
+
+  FIELD-SYMBOLS: <fs_field> TYPE any.
 
   CLEAR ct_clipboard.
 
+  lo_struct ?= cl_abap_typedescr=>describe_by_data( ls_row ).
+  lt_components = lo_struct->components.
+
   LOOP AT pt_data INTO ls_row.
-    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-ersda }{ gv_tab }{ ls_row-ernam }{ gv_tab }{ ls_row-laeda }{ gv_tab }{ ls_row-aenam }{ gv_tab }{ ls_row-vpsta }{ gv_tab }{ ls_row-pstat }|
-      TO ct_clipboard.
+    CLEAR lv_line.
+
+    LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_comp>).
+      ASSIGN COMPONENT <fs_comp>-name OF STRUCTURE ls_row TO <fs_field>.
+      IF sy-subrc = 0.
+        lv_value = <fs_field>.
+        lv_line = |{ lv_line }{ lv_value }{ gv_tab }|.
+      ENDIF.
+    ENDLOOP.
+
+    " Remove o último TAB
+    SHIFT lv_line RIGHT DELETING TRAILING gv_tab.
+
+    APPEND lv_line TO ct_clipboard.
   ENDLOOP.
 
 ENDFORM.
@@ -288,14 +373,15 @@ FORM fill_clipboard_marc  USING
     pt_data TYPE STANDARD TABLE
   CHANGING
     ct_clipboard TYPE ty_clipboard.
+  DATA gv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
 
   DATA ls_row TYPE ty_marc.
 
   CLEAR ct_clipboard.
 
-  LOOP AT pt_data INTO ls_row.
-    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-werks }{ gv_tab }{ ls_row-pstat }{ gv_tab }{ ls_row-dispo }|
-      TO ct_clipboard.
-  ENDLOOP.
+*  LOOP AT pt_data INTO ls_row.
+*    APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-werks }{ gv_tab }{ ls_row-pstat }{ gv_tab }{ ls_row-dispo }|
+*      TO ct_clipboard.
+*  ENDLOOP.
 
 ENDFORM.
