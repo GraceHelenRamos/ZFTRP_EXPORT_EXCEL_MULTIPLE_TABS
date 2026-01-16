@@ -133,7 +133,7 @@ ENDFORM.
 FORM create_sheet USING p_name TYPE string
                         p_color TYPE i.
 
-*assim o programa priorisa sempre a ultima aba e add a proxima depois
+*assim o programa prioriza sempre a ultima aba e add a próxima depois
   DATA: lo_last_sheet TYPE ole2_object,
         lv_count      TYPE i.
 
