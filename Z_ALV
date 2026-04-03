@@ -64,7 +64,7 @@ START-OF-SELECTION.
 
   PERFORM select_data.
   PERFORM open_excel.
-
+                              "tab name"    "cor"  "table exit"                   
   PERFORM export_sheet USING 'Back Orders' 35 gt_backorder.
   PERFORM export_sheet2 USING 'Backlog'    40 gt_backlog.
   PERFORM export_sheet USING 'Blocked'     45 gt_blocked.
