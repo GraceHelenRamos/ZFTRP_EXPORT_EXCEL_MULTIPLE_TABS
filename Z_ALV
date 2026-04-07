@@ -9,6 +9,7 @@ INCLUDE ole2incl.
 *---------------------------------------------------------------------*
 * Objetos OLE
 *---------------------------------------------------------------------*
+*trocar do global e criar uma estrutura 
 DATA: go_excel     TYPE ole2_object,
       go_workbooks TYPE ole2_object,
       go_workbook  TYPE ole2_object,
@@ -19,6 +20,19 @@ DATA: go_excel     TYPE ole2_object,
       go_font      TYPE ole2_object,
       go_color     TYPE ole2_object,
       go_sheets    TYPE ole2_object.
+
+ BEGIN OF y_ole,
+       go_excel     TYPE ole2_object,
+       go_workbooks TYPE ole2_object,
+       go_workbook  TYPE ole2_object,
+       go_sheet     TYPE ole2_object,
+       go_cell1     TYPE ole2_object,
+       go_cell2     TYPE ole2_object,
+       go_range     TYPE ole2_object,
+       go_font      TYPE ole2_object,
+       go_sheets    TYPE ole2_object,
+       END OF y_ole,
+
 
 *---------------------------------------------------------------------*
 * Tipos
