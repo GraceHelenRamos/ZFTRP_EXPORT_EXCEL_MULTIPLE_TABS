@@ -140,7 +140,7 @@ FORM export_sheet USING  p_name  TYPE string
   PERFORM write_header_mara USING 'ty_mara'.
   PERFORM fill_clipboard_mara USING pt_data CHANGING gt_clipboard.
   PERFORM paste_clipboard_from_row USING 2.
-
+ PERFORM zf_format_excel_date_columns USING 'ty_mara'.
 ENDFORM.
 
 *---------------------------------------------------------------------*
@@ -373,6 +373,47 @@ FORM fill_clipboard_marc  USING
   LOOP AT pt_data INTO ls_row.
     APPEND |{ ls_row-matnr }{ gv_tab }{ ls_row-werks }{ gv_tab }{ ls_row-pstat }{ gv_tab }{ ls_row-dispo }|
      TO ct_clipboard.
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  ZF_FORMAT_EXCEL_DATE_COLUMNS
+*&---------------------------------------------------------------------*
+FORM zf_format_excel_date_columns USING p_tabname TYPE tabname.
+
+  DATA: lt_dfies  TYPE STANDARD TABLE OF dfies,
+        lw_dfies  LIKE LINE OF lt_dfies,
+        lo_column TYPE ole2_object,
+        l_col     TYPE i VALUE 1.
+
+  CALL FUNCTION 'DDIF_FIELDINFO_GET'
+    EXPORTING
+      tabname   = p_tabname
+    TABLES
+      dfies_tab = lt_dfies.
+
+  DELETE lt_dfies WHERE fieldname EQ c_field_name-icon.
+
+  LOOP AT lt_dfies INTO lw_dfies
+    WHERE fieldname NE c_field_name-include.
+
+    IF lw_dfies-inttype EQ cl_abap_typedescr=>typekind_date
+      OR lw_dfies-fieldname EQ 'SORT_DATE'
+      OR lw_dfies-fieldname EQ 'EXPECTED_DATE'
+      OR lw_dfies-fieldname EQ 'VDATU'
+      OR lw_dfies-fieldname EQ 'EDATU'
+      OR lw_dfies-fieldname EQ 'AEDAT'.
+
+      CALL METHOD OF go_sheet 'Columns' = lo_column
+        EXPORTING
+          #1 = l_col.
+
+      SET PROPERTY OF lo_column 'NumberFormat' = 'dd/mm/yyyy'.
+
+      FREE OBJECT lo_column.
+    ENDIF.
+
+    l_col = l_col + 1.
   ENDLOOP.
 
 ENDFORM.
